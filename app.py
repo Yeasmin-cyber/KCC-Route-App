@@ -98,7 +98,19 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
         try:
             route = nx.shortest_path(G_main, source=start_node, target=fstp_node, weight='ai_weight')
             
+            # --- Added: Distance Calculation ---
+            total_length_m = sum(
+                G_main[u][v][0]["length"] for u, v in zip(route[:-1], route[1:])
+            )
+            total_length_km = total_length_m / 1000.0
+            
             st.success(f"✅ Route Found for {selected_point_name}! (Avoiding simulated traffic)")
+            
+            # --- Added: Display Distance on UI ---
+            st.metric(
+                label="🛣️ Total Optimized Route Distance", 
+                value=f"{total_length_km:.2f} km"
+            )
             
             # Map Visualization
             m = folium.Map(location=[(start_lat + fstp_lat)/2, (start_lon + fstp_lon)/2], zoom_start=13)
@@ -107,7 +119,15 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
             folium.Marker([start_lat, start_lon], popup=selected_point_name, icon=folium.Icon(color="blue", icon="truck")).add_to(m)
             
             route_coords = [(G_main.nodes[n]['y'], G_main.nodes[n]['x']) for n in route]
-            folium.PolyLine(route_coords, color="#00aa00", weight=5, opacity=0.8).add_to(m)
+            
+            # --- Updated: Added tooltip to show distance on hover ---
+            folium.PolyLine(
+                route_coords, 
+                color="#00aa00", 
+                weight=5, 
+                opacity=0.8,
+                tooltip=f"Total Distance: {total_length_km:.2f} km"
+            ).add_to(m)
             
             folium_static(m, width=900, height=500)
             
