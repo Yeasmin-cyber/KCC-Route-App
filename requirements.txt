@@ -4,3 +4,5 @@ networkx
 folium
 streamlit-folium
 torch
+scikit-learn
+scipy
