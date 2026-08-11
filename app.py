@@ -10,7 +10,7 @@ import random
 # --- 1. Page Configuration ---
 st.set_page_config(page_title="KCC Route Optimization", layout="wide")
 st.title("🚛 KCC Fecal Sludge Route Optimization")
-st.markdown("**AI-Hybrid Model (GNN + Dijkstra) with Real-Time Traffic Simulation**")
+st.markdown("**AI-Hybrid Model (GNN-Dijkstra) with Real-Time Traffic Simulation**")
 
 # --- 2. GNN Model Definition ---
 class RealTimeTrafficGNN(nn.Module):
@@ -104,7 +104,7 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
             )
             total_length_km = total_length_m / 1000.0
             
-            # --- 2. Fuel & Cost Calculation (2000L Vacutug: 0.20 L/km @ 115 BDT/L) ---
+            # --- 2. Fuel & Cost Calculation ---
             fuel_consumption_rate = 0.20  # Liters per km
             fuel_price_per_liter = 115    # BDT per Liter
             
@@ -113,6 +113,9 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
             
             st.success(f"✅ Route Found for {selected_point_name}! (Avoiding simulated traffic)")
             
+            # --- Added: Display Vehicle Info ---
+            st.info("ℹ️ **Vehicle Information:** Vacutug Capacity: 2000 Liters | Fuel Efficiency: 0.20 L/km | Fuel Price: BDT 115/L")
+            
             # --- 3. Display Distance, Fuel & Cost side-by-side ---
             col1, col2, col3 = st.columns(3)
             col1.metric(
@@ -120,12 +123,12 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
                 value=f"{total_length_km:.2f} km"
             )
             col2.metric(
-                label="⛽ Est. Fuel Needed (2000L)", 
+                label="⛽ Est. Fuel Needed", 
                 value=f"{fuel_needed_liters:.2f} L"
             )
             col3.metric(
                 label="💰 Est. Fuel Cost", 
-                value=f"{total_fuel_cost_bdt:.2f} BDT"
+                value=f"BDT {total_fuel_cost_bdt:.2f}"  # Updated: BDT before amount
             )
             
             # Map Visualization
@@ -136,13 +139,13 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
             
             route_coords = [(G_main.nodes[n]['y'], G_main.nodes[n]['x']) for n in route]
             
-            # Add Tooltip on map line showing distance and fuel cost
+            # Update Tooltip to show Capacity and BDT format
             folium.PolyLine(
                 route_coords, 
                 color="#00aa00", 
                 weight=5, 
                 opacity=0.8,
-                tooltip=f"Distance: {total_length_km:.2f} km | Fuel: {fuel_needed_liters:.2f} L | Cost: {total_fuel_cost_bdt:.2f} BDT"
+                tooltip=f"Vacutug (2000L) | Dist: {total_length_km:.2f} km | Fuel: {fuel_needed_liters:.2f} L | Cost: BDT {total_fuel_cost_bdt:.2f}"
             ).add_to(m)
             
             folium_static(m, width=900, height=500)
