@@ -98,18 +98,34 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
         try:
             route = nx.shortest_path(G_main, source=start_node, target=fstp_node, weight='ai_weight')
             
-            # --- Added: Distance Calculation ---
+            # --- 1. Distance Calculation ---
             total_length_m = sum(
                 G_main[u][v][0]["length"] for u, v in zip(route[:-1], route[1:])
             )
             total_length_km = total_length_m / 1000.0
             
+            # --- 2. Fuel & Cost Calculation (2000L Vacutug: 0.20 L/km @ 115 BDT/L) ---
+            fuel_consumption_rate = 0.20  # Liters per km
+            fuel_price_per_liter = 115    # BDT per Liter
+            
+            fuel_needed_liters = total_length_km * fuel_consumption_rate
+            total_fuel_cost_bdt = fuel_needed_liters * fuel_price_per_liter
+            
             st.success(f"✅ Route Found for {selected_point_name}! (Avoiding simulated traffic)")
             
-            # --- Added: Display Distance on UI ---
-            st.metric(
-                label="🛣️ Total Optimized Route Distance", 
+            # --- 3. Display Distance, Fuel & Cost side-by-side ---
+            col1, col2, col3 = st.columns(3)
+            col1.metric(
+                label="🛣️ Total Distance", 
                 value=f"{total_length_km:.2f} km"
+            )
+            col2.metric(
+                label="⛽ Est. Fuel Needed (2000L)", 
+                value=f"{fuel_needed_liters:.2f} L"
+            )
+            col3.metric(
+                label="💰 Est. Fuel Cost", 
+                value=f"{total_fuel_cost_bdt:.2f} BDT"
             )
             
             # Map Visualization
@@ -120,13 +136,13 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
             
             route_coords = [(G_main.nodes[n]['y'], G_main.nodes[n]['x']) for n in route]
             
-            # --- Updated: Added tooltip to show distance on hover ---
+            # Add Tooltip on map line showing distance and fuel cost
             folium.PolyLine(
                 route_coords, 
                 color="#00aa00", 
                 weight=5, 
                 opacity=0.8,
-                tooltip=f"Total Distance: {total_length_km:.2f} km"
+                tooltip=f"Distance: {total_length_km:.2f} km | Fuel: {fuel_needed_liters:.2f} L | Cost: {total_fuel_cost_bdt:.2f} BDT"
             ).add_to(m)
             
             folium_static(m, width=900, height=500)
