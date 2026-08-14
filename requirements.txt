@@ -7,3 +7,4 @@ torch_geometric
 folium
 streamlit-folium
 scipy
+scikit-learn
