@@ -1,8 +1,9 @@
 streamlit
 osmnx
 networkx
+numpy
+torch
+torch_geometric
 folium
 streamlit-folium
-torch
-scikit-learn
 scipy
