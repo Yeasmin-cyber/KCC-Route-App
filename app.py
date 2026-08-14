@@ -5,7 +5,7 @@ import folium
 from streamlit_folium import folium_static
 import torch
 import torch.nn as nn
-import random  # <--- এই লাইনটি না থাকার কারণে এররটি এসেছিল
+import random  
 
 # --- 1. Page Configuration ---
 st.set_page_config(page_title="KCC Route Optimization", layout="wide")
