@@ -1,18 +1,16 @@
 import streamlit as st
 import osmnx as ox
 import networkx as nx
-import numpy as np
-import torch
-import torch.nn as nn
-from torch_geometric.data import Data
-from torch_geometric.nn import GCNConv
 import folium
 from streamlit_folium import folium_static
+import torch
+import torch.nn as nn
+import random  # <--- এই লাইনটি না থাকার কারণে এররটি এসেছিল
 
 # --- 1. Page Configuration ---
 st.set_page_config(page_title="KCC Route Optimization", layout="wide")
 st.title("🚛 KCC Fecal Sludge Route Optimization")
-st.markdown("**AI-Hybrid Model (GNN - Dijkstra) with Real-Time Traffic Simulation**")
+st.markdown("**AI-Hybrid Model (GNN + Dijkstra) with Real-Time Traffic Simulation**")
 
 # --- 2. GNN Model Definition ---
 class RealTimeTrafficGNN(nn.Module):
@@ -53,7 +51,6 @@ def load_graph_and_nodes():
         (22.858562, 89.517755), (22.903636, 89.511915)
     ]
     
-    # Setting OSMnx to use cache for faster cloud loading
     ox.settings.use_cache = True
     
     with st.spinner("Downloading KCC Road Network... (Takes about 1 minute)"):
@@ -83,30 +80,27 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
         
         start_node = ox.distance.nearest_nodes(G_main, start_lon, start_lat)
         
-        # Injecting AI Weights dynamically
         with torch.no_grad():
             for u, v, key, data in G_main.edges(keys=True, data=True):
                 length = data.get('length', 10.0)
                 if isinstance(length, list): length = length[0]
                 
-                # Simulating Traffic Congestion (1.0 = clear, 3.0 = heavy traffic)
                 simulated_congestion = random.uniform(1.0, 3.0) 
                 
                 features = torch.tensor([[float(length), float(simulated_congestion)]], dtype=torch.float32)
                 ai_factor = ai_model(features).item()
                 data['ai_weight'] = float(length) * ai_factor
 
-        # Run Dijkstra
         try:
             route = nx.shortest_path(G_main, source=start_node, target=fstp_node, weight='ai_weight')
             
-            # --- 1. Distance Calculation ---
+            # Distance Calculation
             total_length_m = sum(
                 G_main[u][v][0]["length"] for u, v in zip(route[:-1], route[1:])
             )
             total_length_km = total_length_m / 1000.0
             
-            # --- 2. Fuel & Cost Calculation ---
+            # Fuel & Cost Calculation
             fuel_consumption_rate = 0.20  # Liters per km
             fuel_price_per_liter = 115    # BDT per Liter
             
@@ -115,10 +109,8 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
             
             st.success(f"✅ Route Found for {selected_point_name}! (Avoiding simulated traffic)")
             
-            # --- Added: Display Vehicle Info ---
             st.info("ℹ️ **Vehicle Information:** Vacutug Capacity: 2000 Liters | Fuel Efficiency: 0.20 L/km | Fuel Price: BDT 115/L")
             
-            # --- 3. Display Distance, Fuel & Cost side-by-side ---
             col1, col2, col3 = st.columns(3)
             col1.metric(
                 label="🛣️ Total Distance", 
@@ -130,7 +122,7 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
             )
             col3.metric(
                 label="💰 Est. Fuel Cost", 
-                value=f"BDT {total_fuel_cost_bdt:.2f}"  # Updated: BDT before amount
+                value=f"BDT {total_fuel_cost_bdt:.2f}"
             )
             
             # Map Visualization
@@ -141,7 +133,6 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
             
             route_coords = [(G_main.nodes[n]['y'], G_main.nodes[n]['x']) for n in route]
             
-            # Update Tooltip to show Capacity and BDT format
             folium.PolyLine(
                 route_coords, 
                 color="#00aa00", 
