@@ -9,150 +9,150 @@ from torch_geometric.nn import GCNConv
 import folium
 from streamlit_folium import folium_static
 
-# --- Page Config ---
+# --- 1. Page Configuration ---
 st.set_page_config(page_title="KCC Route Optimization", layout="wide")
-st.title("🚛 KCC Fecal Sludge AI Route Optimization")
-st.markdown("This application uses a Hybrid **GNN + Dijkstra** model to predict traffic penalties and find the most optimized route to the FSTP.")
+st.title("🚛 KCC Fecal Sludge Route Optimization")
+st.markdown("**AI-Hybrid Model (GNN - Dijkstra) with Real-Time Traffic Simulation**")
 
-# --- Real Coordinates ---
-fstp_lat, fstp_lon = 22.79398, 89.491823
-real_collection_coords = [
-(22.897467, 89.501752), (22.894609, 89.515169), (22.864415, 89.526720),
-    (22.877751, 89.520525), (22.854738, 89.527598), (22.847730, 89.513618),
-    (22.845971, 89.528832), (22.839385, 89.522020), (22.838030, 89.536209),
-    (22.850093, 89.547798), (22.839687, 89.548149), (22.820892, 89.544093),
-    (22.811549, 89.540319), (22.829615, 89.552474), (22.831872, 89.528635),
-    (22.832548, 89.543333), (22.812867, 89.549969), (22.816222, 89.566623),
-    (22.818628, 89.555155), (22.825843, 89.537212), (22.774034, 89.576737),
-    (22.856356, 89.536461), (22.847220, 89.540241), (22.858290, 89.546450),
-    (22.864765, 89.538999), (22.797439, 89.552056), (22.804993, 89.553707),
-    (22.811295, 89.559441), (22.805815, 89.566529), (22.802722, 89.545178),
-    (22.799376, 89.562830), (22.803131, 89.578140), (22.798268, 89.570445),
-    (22.793749, 89.579724), (22.781920, 89.577047), (22.789188, 89.570759),
-    (22.810818, 89.573463), (22.885038, 89.498048), (22.890268, 89.507143),
-    (22.883686, 89.514196), (22.869835, 89.522035), (22.866276, 89.512400),
-    (22.858562, 89.517755), (22.903636, 89.511915)
-]
+# --- 2. GNN Model Definition ---
+class RealTimeTrafficGNN(nn.Module):
+    def __init__(self):
+        super(RealTimeTrafficGNN, self).__init__()
+        self.fc1 = nn.Linear(2, 16)
+        self.fc2 = nn.Linear(16, 1)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
 
-# --- GNN Model Definition ---
-class HybridGNN(nn.Module):
-    def __init__(self, in_channels, edge_dim):
-        super(HybridGNN, self).__init__()
-        self.conv1 = GCNConv(in_channels, 16)
-        self.conv2 = GCNConv(16, 8)
-        self.edge_mlp = nn.Sequential(
-            nn.Linear(8 * 2 + edge_dim, 16),
-            nn.ReLU(),
-            nn.Linear(16, 1),
-            nn.Softplus()
-        )
+    def forward(self, x):
+        x = self.relu(self.fc1(x))
+        return 1.0 + self.sigmoid(self.fc2(x))
 
-    def forward(self, x, edge_index, edge_attr):
-        h = torch.relu(self.conv1(x, edge_index))
-        h = torch.relu(self.conv2(h, edge_index))
-        row, col = edge_index
-        h_src, h_dst = h[row], h[col]
-        combined_edge_features = torch.cat([h_src, h_dst, edge_attr], dim=-1)
-        return self.edge_mlp(combined_edge_features)
+ai_model = RealTimeTrafficGNN()
 
-# --- Data Caching & Processing ---
-@st.cache_resource(show_spinner=False)
-def load_and_process_graph():
-    center_lat = np.mean([lat for lat, lon in real_collection_coords] + [fstp_lat])
-    center_lon = np.mean([lon for lat, lon in real_collection_coords] + [fstp_lon])
+# --- 3. Data & Graph Setup (Cached to load only once) ---
+@st.cache_resource
+def load_graph_and_nodes():
+    fstp_lat, fstp_lon = 22.79398, 89.491823
     
-    # Download Graph
-    G = ox.graph_from_point((center_lat, center_lon), dist=10000, network_type='drive')
-    G = ox.truncate.largest_component(G, strongly=True)
-    G = nx.convert_node_labels_to_integers(G)
+    # All 44 Collection Points in KCC
+    collection_coords = [
+        (22.897467, 89.501752), (22.894609, 89.515169), (22.864415, 89.526720),
+        (22.877751, 89.520525), (22.854738, 89.527598), (22.847730, 89.513618),
+        (22.845971, 89.528832), (22.839385, 89.522020), (22.838030, 89.536209),
+        (22.850093, 89.547798), (22.839687, 89.548149), (22.820892, 89.544093),
+        (22.811549, 89.540319), (22.829615, 89.552474), (22.831872, 89.528635),
+        (22.832548, 89.543333), (22.812867, 89.549969), (22.816222, 89.566623),
+        (22.818628, 89.555155), (22.825843, 89.537212), (22.774034, 89.576737),
+        (22.856356, 89.536461), (22.847220, 89.540241), (22.858290, 89.546450),
+        (22.864765, 89.538999), (22.797439, 89.552056), (22.804993, 89.553707),
+        (22.811295, 89.559441), (22.805815, 89.566529), (22.802722, 89.545178),
+        (22.799376, 89.562830), (22.803131, 89.578140), (22.798268, 89.570445),
+        (22.793749, 89.579724), (22.781920, 89.577047), (22.789188, 89.570759),
+        (22.810818, 89.573463), (22.885038, 89.498048), (22.890268, 89.507143),
+        (22.883686, 89.514196), (22.869835, 89.522035), (22.866276, 89.512400),
+        (22.858562, 89.517755), (22.903636, 89.511915)
+    ]
     
-    fstp_node = ox.distance.nearest_nodes(G, fstp_lon, fstp_lat)
+    # Setting OSMnx to use cache for faster cloud loading
+    ox.settings.use_cache = True
     
-    collection_nodes = []
-    for lat, lon in real_collection_coords:
-        node = ox.distance.nearest_nodes(G, lon, lat)
-        if node != fstp_node and node not in collection_nodes:
-            collection_nodes.append(node)
-            
-    # PyG Feature Extraction
-    degrees = dict(G.degree())
-    G_simple = nx.Graph(G)
-    clustering = nx.clustering(G_simple)
-    
-    x = torch.tensor([[degrees[n], clustering[n]] for n in G.nodes()], dtype=torch.float)
-    
-    edge_index_list, edge_attr_list = [], []
-    for u, v, k, data in G.edges(keys=True, data=True):
-        edge_index_list.append([u, v])
-        raw_length = data.get('length', 1.0)
-        length = float(sum(raw_length)) if isinstance(raw_length, list) else float(raw_length)
-        traffic_penalty = np.random.uniform(1.0, 4.0)
-        edge_attr_list.append([length, traffic_penalty])
+    with st.spinner("Downloading KCC Road Network... (Takes about 1 minute)"):
+        G_raw = ox.graph_from_point((fstp_lat, fstp_lon), dist=12000, network_type='drive')
+        G_un = G_raw.to_undirected()
+        largest_cc = max(nx.connected_components(G_un), key=len)
+        G_main = G_un.subgraph(largest_cc).copy()
         
-    edge_index = torch.tensor(edge_index_list, dtype=torch.long).t().contiguous()
-    edge_attr = torch.tensor(edge_attr_list, dtype=torch.float)
-    
-    pyg_data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
-    
-    # Run Inference
-    gnn_model = HybridGNN(in_channels=2, edge_dim=2)
-    gnn_model.eval()
-    with torch.no_grad():
-        predictions = gnn_model(pyg_data.x, pyg_data.edge_index, pyg_data.edge_attr).numpy().flatten()
-        
-    for idx, (u, v, k, data) in enumerate(G.edges(keys=True, data=True)):
-        raw_length = data.get('length', 1.0)
-        length = float(sum(raw_length)) if isinstance(raw_length, list) else float(raw_length)
-        data['gnn_smart_weight'] = float(predictions[idx] * length)
-        
-    return G, fstp_node, collection_nodes
+        fstp_node = ox.distance.nearest_nodes(G_main, fstp_lon, fstp_lat)
+        return G_main, fstp_node, collection_coords, fstp_lat, fstp_lon
 
-with st.spinner("Downloading Road Network & Running AI Model... (This takes a minute on first load)"):
-    G, fstp_node, collection_nodes = load_and_process_graph()
+G_main, fstp_node, collection_coords, fstp_lat, fstp_lon = load_graph_and_nodes()
 
-# --- Streamlit UI ---
+# --- 4. User Interface (UI) ---
 st.sidebar.header("Navigation Control")
-st.sidebar.write("Total valid collection points loaded:", len(collection_nodes))
+st.sidebar.markdown("Select a point below to simulate a Vacutug route.")
 
-point_options = [f"Collection Point {i+1}" for i in range(len(collection_nodes))]
-selected_point = st.sidebar.selectbox("Select a Collection Point:", point_options)
-selected_idx = int(selected_point.split(" ")[-1]) - 1
-target_node = collection_nodes[selected_idx]
+point_options = [f"Collection Point {i+1}" for i in range(len(collection_coords))]
+selected_point_name = st.sidebar.selectbox("Current Vacutug Location:", point_options)
 
-# রেডিও বাটন বাদ দেওয়া হয়েছে। এখন শুধুমাত্র AI-Optimized রুটই কাজ করবে।
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Algorithm:** AI-Hybrid (GNN + Dijkstra)")
+selected_idx = int(selected_point_name.split(" ")[-1]) - 1
+start_lat, start_lon = collection_coords[selected_idx]
 
-if st.sidebar.button("🚗 Find Route"):
-    weight_param = 'gnn_smart_weight' # বাই-ডিফল্ট GNN এর প্রেডিক্ট করা ট্রাফিক ওয়েট সেট করা হলো
-    
-    try:
-        route = nx.shortest_path(G, source=target_node, target=fstp_node, weight=weight_param)
+# --- 5. Routing Logic ---
+if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
+    with st.spinner("Analyzing traffic & calculating AI optimal route..."):
         
-        # Calculate Total Physical Distance
-        total_length_m = sum(G[u][v][0]["length"] for u, v in zip(route[:-1], route[1:]))
-        total_length_km = total_length_m / 1000.0
+        start_node = ox.distance.nearest_nodes(G_main, start_lon, start_lat)
         
-        st.success("✅ Route Found! AI successfully avoided traffic congestion.")
-        st.metric(label="🛣️ Total Optimized Route Distance", value=f"{total_length_km:.2f} km")
-        
-        # Folium Map Visualization
-        m = folium.Map(location=[fstp_lat, fstp_lon], zoom_start=13)
-        folium.Marker([fstp_lat, fstp_lon], popup="FSTP", icon=folium.Icon(color="red")).add_to(m)
-        folium.Marker([G.nodes[target_node]['y'], G.nodes[target_node]['x']], popup=selected_point, icon=folium.Icon(color="blue")).add_to(m)
-        
-        route_coords = [(G.nodes[n]['y'], G.nodes[n]['x']) for n in route]
-        
-        # AI রুটের জন্য ম্যাপে একটি নির্দিষ্ট রঙ (সবুজ) ব্যবহার করা হলো
-        folium.PolyLine(
-            route_coords, 
-            color="#00aa00", 
-            weight=5, 
-            opacity=0.8, 
-            tooltip=f"Optimized Distance: {total_length_km:.2f} km"
-        ).add_to(m)
-        
-        folium_static(m, width=900, height=500)
-        
-    except nx.NetworkXNoPath:
-        st.error("Error: Could not find a valid path to the FSTP from this location.")
+        # Injecting AI Weights dynamically
+        with torch.no_grad():
+            for u, v, key, data in G_main.edges(keys=True, data=True):
+                length = data.get('length', 10.0)
+                if isinstance(length, list): length = length[0]
+                
+                # Simulating Traffic Congestion (1.0 = clear, 3.0 = heavy traffic)
+                simulated_congestion = random.uniform(1.0, 3.0) 
+                
+                features = torch.tensor([[float(length), float(simulated_congestion)]], dtype=torch.float32)
+                ai_factor = ai_model(features).item()
+                data['ai_weight'] = float(length) * ai_factor
+
+        # Run Dijkstra
+        try:
+            route = nx.shortest_path(G_main, source=start_node, target=fstp_node, weight='ai_weight')
+            
+            # --- 1. Distance Calculation ---
+            total_length_m = sum(
+                G_main[u][v][0]["length"] for u, v in zip(route[:-1], route[1:])
+            )
+            total_length_km = total_length_m / 1000.0
+            
+            # --- 2. Fuel & Cost Calculation ---
+            fuel_consumption_rate = 0.20  # Liters per km
+            fuel_price_per_liter = 115    # BDT per Liter
+            
+            fuel_needed_liters = total_length_km * fuel_consumption_rate
+            total_fuel_cost_bdt = fuel_needed_liters * fuel_price_per_liter
+            
+            st.success(f"✅ Route Found for {selected_point_name}! (Avoiding simulated traffic)")
+            
+            # --- Added: Display Vehicle Info ---
+            st.info("ℹ️ **Vehicle Information:** Vacutug Capacity: 2000 Liters | Fuel Efficiency: 0.20 L/km | Fuel Price: BDT 115/L")
+            
+            # --- 3. Display Distance, Fuel & Cost side-by-side ---
+            col1, col2, col3 = st.columns(3)
+            col1.metric(
+                label="🛣️ Total Distance", 
+                value=f"{total_length_km:.2f} km"
+            )
+            col2.metric(
+                label="⛽ Est. Fuel Needed", 
+                value=f"{fuel_needed_liters:.2f} L"
+            )
+            col3.metric(
+                label="💰 Est. Fuel Cost", 
+                value=f"BDT {total_fuel_cost_bdt:.2f}"  # Updated: BDT before amount
+            )
+            
+            # Map Visualization
+            m = folium.Map(location=[(start_lat + fstp_lat)/2, (start_lon + fstp_lon)/2], zoom_start=13)
+            
+            folium.Marker([fstp_lat, fstp_lon], popup="FSTP (Rajbandh)", icon=folium.Icon(color="red", icon="trash")).add_to(m)
+            folium.Marker([start_lat, start_lon], popup=selected_point_name, icon=folium.Icon(color="blue", icon="truck")).add_to(m)
+            
+            route_coords = [(G_main.nodes[n]['y'], G_main.nodes[n]['x']) for n in route]
+            
+            # Update Tooltip to show Capacity and BDT format
+            folium.PolyLine(
+                route_coords, 
+                color="#00aa00", 
+                weight=5, 
+                opacity=0.8,
+                tooltip=f"Vacutug (2000L) | Dist: {total_length_km:.2f} km | Fuel: {fuel_needed_liters:.2f} L | Cost: BDT {total_fuel_cost_bdt:.2f}"
+            ).add_to(m)
+            
+            folium_static(m, width=900, height=500)
+            
+        except nx.NetworkXNoPath:
+            st.error("Error: Could not find a connected path.")
+else:
+    st.info("👈 Please select a Collection Point from the sidebar and click the button to start.")
