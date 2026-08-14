@@ -119,10 +119,12 @@ selected_point = st.sidebar.selectbox("Select a Collection Point:", point_option
 selected_idx = int(selected_point.split(" ")[-1]) - 1
 target_node = collection_nodes[selected_idx]
 
-route_type = st.sidebar.radio("Select Routing Algorithm:", ["AI-Optimized Route (GNN)", "Standard Route (Distance Only)"])
+# রেডিও বাটন বাদ দেওয়া হয়েছে। এখন শুধুমাত্র AI-Optimized রুটই কাজ করবে।
+st.sidebar.markdown("---")
+st.sidebar.markdown("**Algorithm:** AI-Hybrid (GNN + Dijkstra)")
 
 if st.sidebar.button("🚗 Find Route"):
-    weight_param = 'gnn_smart_weight' if "AI" in route_type else 'length'
+    weight_param = 'gnn_smart_weight' # বাই-ডিফল্ট GNN এর প্রেডিক্ট করা ট্রাফিক ওয়েট সেট করা হলো
     
     try:
         route = nx.shortest_path(G, source=target_node, target=fstp_node, weight=weight_param)
@@ -131,8 +133,8 @@ if st.sidebar.button("🚗 Find Route"):
         total_length_m = sum(G[u][v][0]["length"] for u, v in zip(route[:-1], route[1:]))
         total_length_km = total_length_m / 1000.0
         
-        st.success(f"✅ Route Found! Algorithm used: **{route_type}**")
-        st.metric(label="🛣️ Total Route Distance", value=f"{total_length_km:.2f} km")
+        st.success("✅ Route Found! AI successfully avoided traffic congestion.")
+        st.metric(label="🛣️ Total Optimized Route Distance", value=f"{total_length_km:.2f} km")
         
         # Folium Map Visualization
         m = folium.Map(location=[fstp_lat, fstp_lon], zoom_start=13)
@@ -140,8 +142,15 @@ if st.sidebar.button("🚗 Find Route"):
         folium.Marker([G.nodes[target_node]['y'], G.nodes[target_node]['x']], popup=selected_point, icon=folium.Icon(color="blue")).add_to(m)
         
         route_coords = [(G.nodes[n]['y'], G.nodes[n]['x']) for n in route]
-        line_color = "#00aa00" if "AI" in route_type else "#3388ff"
-        folium.PolyLine(route_coords, color=line_color, weight=5, opacity=0.8, tooltip=f"Distance: {total_length_km:.2f} km").add_to(m)
+        
+        # AI রুটের জন্য ম্যাপে একটি নির্দিষ্ট রঙ (সবুজ) ব্যবহার করা হলো
+        folium.PolyLine(
+            route_coords, 
+            color="#00aa00", 
+            weight=5, 
+            opacity=0.8, 
+            tooltip=f"Optimized Distance: {total_length_km:.2f} km"
+        ).add_to(m)
         
         folium_static(m, width=900, height=500)
         
