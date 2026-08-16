@@ -5,7 +5,7 @@ import folium
 from streamlit_folium import folium_static
 import torch
 import torch.nn as nn
-import random  
+import random
 
 # --- 1. Page Configuration ---
 st.set_page_config(page_title="KCC Route Optimization", layout="wide")
@@ -27,7 +27,7 @@ class RealTimeTrafficGNN(nn.Module):
 
 ai_model = RealTimeTrafficGNN()
 
-# --- 3. Data & Graph Setup (Cached to load only once) ---
+# --- 3. Data & Graph Setup (Loading from local GraphML file) ---
 @st.cache_resource
 def load_graph_and_nodes():
     fstp_lat, fstp_lon = 22.79398, 89.491823
@@ -51,14 +51,9 @@ def load_graph_and_nodes():
         (22.858562, 89.517755), (22.903636, 89.511915)
     ]
     
-    ox.settings.use_cache = True
-    
-    with st.spinner("Downloading KCC Road Network... (Takes about 1 minute)"):
-        G_raw = ox.graph_from_point((fstp_lat, fstp_lon), dist=12000, network_type='drive')
-        G_un = G_raw.to_undirected()
-        largest_cc = max(nx.connected_components(G_un), key=len)
-        G_main = G_un.subgraph(largest_cc).copy()
-        
+    # Fast load from local .graphml file
+    with st.spinner("Loading KCC Road Network..."):
+        G_main = ox.load_graphml("kcc_network.graphml")
         fstp_node = ox.distance.nearest_nodes(G_main, fstp_lon, fstp_lat)
         return G_main, fstp_node, collection_coords, fstp_lat, fstp_lon
 
@@ -108,26 +103,15 @@ if st.sidebar.button("🚗 Find Optimal Route to FSTP"):
             total_fuel_cost_bdt = fuel_needed_liters * fuel_price_per_liter
             
             st.success(f"✅ Route Found for {selected_point_name}! (Avoiding simulated traffic)")
-            
             st.info("ℹ️ **Vehicle Information:** Vacutug Capacity: 2000 Liters | Fuel Efficiency: 0.20 L/km | Fuel Price: BDT 115/L")
             
             col1, col2, col3 = st.columns(3)
-            col1.metric(
-                label="🛣️ Total Distance", 
-                value=f"{total_length_km:.2f} km"
-            )
-            col2.metric(
-                label="⛽ Est. Fuel Needed", 
-                value=f"{fuel_needed_liters:.2f} L"
-            )
-            col3.metric(
-                label="💰 Est. Fuel Cost", 
-                value=f"BDT {total_fuel_cost_bdt:.2f}"
-            )
+            col1.metric(label="🛣️ Total Distance", value=f"{total_length_km:.2f} km")
+            col2.metric(label="⛽ Est. Fuel Needed", value=f"{fuel_needed_liters:.2f} L")
+            col3.metric(label="💰 Est. Fuel Cost", value=f"BDT {total_fuel_cost_bdt:.2f}")
             
             # Map Visualization
             m = folium.Map(location=[(start_lat + fstp_lat)/2, (start_lon + fstp_lon)/2], zoom_start=13)
-            
             folium.Marker([fstp_lat, fstp_lon], popup="FSTP (Rajbandh)", icon=folium.Icon(color="red", icon="trash")).add_to(m)
             folium.Marker([start_lat, start_lon], popup=selected_point_name, icon=folium.Icon(color="blue", icon="truck")).add_to(m)
             
